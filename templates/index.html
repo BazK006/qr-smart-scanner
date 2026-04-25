@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QR SMART Scanner</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Sarabun:wght@400;500&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="icon" href="../static/images/qrcode.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="../static/css/index.css">
+</head>
+
+<body>
+    <nav class="navbar border-bottom border-secondary">
+        <div class="container justify-content-center">
+            <span class="navbar-brand mb-0 h1 text-success fw-bold">QR SMART SCANNER</span>
+        </div>
+    </nav>
+
+    <main class="container flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+
+        <div class="scanner-wrapper">
+            <div id="laser" class="laser-line"></div>
+            <div id="reader"></div>
+
+            <div class="scan-frame">
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
+            </div>
+
+            <div id="preview-container" class="preview-container d-none">
+                <img id="preview-image" src="" alt="Uploaded QR">
+                <button id="btn-close-preview" class="btn-close-preview">✖</button>
+            </div>
+        </div>
+
+        <div class="w-100" style="max-width: 350px;">
+            <div class="d-grid gap-3">
+                <button id="btn-toggle" onclick="toggleCamera()" class="btn btn-custom btn-scan-start">
+                    <i class="bi bi-qr-code-scan me-2"></i> <span id="btn-text">เปิดสแกน QR</span>
+                </button>
+
+                <button onclick="document.getElementById('file-input').click()"
+                    class="btn btn-custom btn-light border-secondary">
+                    <i class="bi bi-folder2-open"></i> อัปโหลดรูปภาพ
+                </button>
+                <input type="file" id="file-input" accept="image/*" class="hidden d-none">
+            </div>
+
+            <div id="info" class="text-center mt-4 text-secondary small">
+                <p class="mb-0 opacity-75">วาง QR Code ให้อยู่ในกรอบสแกน</p>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="log-panel">
+        <div class="container d-flex align-items-center justify-content-center"
+            style="color: #fff; font-size: 0.85rem;">
+            <span id="status-dot" class="status-dot-active me-1 mt-0"></span>
+            <span class="opacity-75">สถานะ:</span>
+            <span id="status-log" class="ms-1 fw-bold">พร้อมใช้งาน</span>
+        </div>
+    </footer>
+
+    <script src="../static/js/index.js"></script>
+</body>
+
+</html>
