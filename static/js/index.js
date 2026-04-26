@@ -18,10 +18,15 @@ function resetUIState() {
     statusDot.className = isRunning ? 'status-dot-active me-1' : 'status-dot-ready me-1';
 }
 
+function closePreview() {
+    previewContainer.classList.add('d-none');
+    previewImage.src = "";
+    fileInput.value = "";
+}
+
 function onScanSuccess(decodedText) {
     if (navigator.vibrate) navigator.vibrate(150);
     statusLog.innerText = "พบข้อมูลในระบบ";
-
     laser.style.display = 'none';
 
     if (decodedText.startsWith('http')) {
@@ -44,6 +49,7 @@ function onScanSuccess(decodedText) {
             if (result.isConfirmed) {
                 window.location.href = decodedText;
             } else {
+                closePreview();
                 resetUIState();
             }
         });
@@ -57,6 +63,7 @@ function onScanSuccess(decodedText) {
             color: '#fff'
         }).then(() => {
             laser.style.display = isRunning ? 'block' : 'none';
+            closePreview();
             resetUIState();
         });
     }
@@ -82,7 +89,7 @@ async function toggleCamera() {
             isRunning = true;
             statusLog.innerText = "กำลังสแกน...";
             statusDot.className = 'status-dot-active me-1';
-            previewContainer.classList.add('d-none');
+            closePreview();
         }).catch(err => {
             statusLog.innerText = "ไม่สามารถเปิดกล้องได้";
             statusDot.className = 'status-dot-standby me-1';
@@ -140,30 +147,20 @@ fileInput.addEventListener('change', async e => {
                 color: '#fff'
             }).then(() => {
                 resetUIState();
+                closePreview();
             });
         });
 });
 
 btnClosePreview.addEventListener('click', () => {
-    previewContainer.classList.add('d-none');
-    previewImage.src = "";
-    fileInput.value = "";
+    closePreview();
 
     try { html5QrCode.clear(); } catch (err) { }
-
-    info.innerHTML = `<span class="text-secondary opacity-75">วาง QR Code ให้อยู่ในกรอบสแกน</span>`;
-
-    if (isRunning) {
-        statusLog.innerText = "กำลังสแกน...";
-        statusDot.className = 'status-dot-active me-1';
-    } else {
-        statusLog.innerText = "ระบบพร้อมใช้งาน";
-        statusDot.className = 'status-dot-ready me-1';
-    }
 
     if (!isRunning) {
         const readerDiv = document.getElementById('reader');
         readerDiv.querySelectorAll('img, canvas').forEach(node => node.remove());
     }
+
     resetUIState();
 });
