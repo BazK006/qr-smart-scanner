@@ -17,58 +17,73 @@
     <link rel="stylesheet" href="../static/css/index.css">
 </head>
 
-<body>
-    <nav class="navbar border-bottom border-secondary">
-        <div class="container justify-content-center">
-            <span class="navbar-brand mb-0 h1 text-success fw-bold">QR SMART SCANNER</span>
+<body class="d-flex flex-column min-vh-100 bg-dark text-light">
+
+    <nav class="navbar border-bottom border-secondary bg-dark shadow-sm">
+        <div class="container justify-content-center py-1">
+            <span class="navbar-brand mb-0 h4 text-success fw-bold text-uppercase" style="letter-spacing: 1px;">
+                <i class="bi bi-qr-code-scan me-2"></i>QR SMART SCANNER
+            </span>
         </div>
     </nav>
 
-    <main class="container flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+    <main class="container flex-grow-1 d-flex flex-column align-items-center justify-content-center py-4 py-md-5">
 
-        <div class="scanner-wrapper">
-            <div id="laser" class="laser-line"></div>
-            <div id="reader"></div>
+        <div class="row w-100 justify-content-center">
 
-            <div class="scan-frame">
-                <div class="corner top-left"></div>
-                <div class="corner top-right"></div>
-                <div class="corner bottom-left"></div>
-                <div class="corner bottom-right"></div>
-            </div>
+            <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4 d-flex flex-column align-items-center">
 
-            <div id="preview-container" class="preview-container d-none">
-                <img id="preview-image" src="" alt="Uploaded QR">
-                <button id="btn-close-preview" class="btn-close-preview">✖</button>
-            </div>
-        </div>
+                <div class="scanner-wrapper w-100 mb-4 shadow-lg">
+                    <div id="laser" class="laser-line"></div>
+                    <div id="reader"></div>
 
-        <div class="w-100" style="max-width: 350px;">
-            <div class="d-grid gap-3">
-                <button id="btn-toggle" onclick="toggleCamera()" class="btn btn-custom btn-scan-start">
-                    <i class="bi bi-qr-code-scan me-2"></i> <span id="btn-text">เปิดสแกน QR</span>
-                </button>
+                    <div class="scan-frame">
+                        <div class="corner top-left"></div>
+                        <div class="corner top-right"></div>
+                        <div class="corner bottom-left"></div>
+                        <div class="corner bottom-right"></div>
+                    </div>
 
-                <button onclick="document.getElementById('file-input').click()"
-                    class="btn btn-custom btn-light border-secondary">
-                    <i class="bi bi-folder2-open"></i> อัปโหลดรูปภาพ
-                </button>
-                <input type="file" id="file-input" accept="image/*" class="hidden d-none">
-            </div>
+                    <div id="preview-container" class="preview-container d-none">
+                        <img id="preview-image" src="" alt="Uploaded QR">
+                        <button id="btn-close-preview" class="btn-close-preview" aria-label="Close Preview">✖</button>
+                    </div>
+                </div>
 
-            <div id="info" class="text-center mt-4 text-secondary small">
-                <p class="mb-0 opacity-75">วาง QR Code ให้อยู่ในกรอบสแกน</p>
+                <div class="w-100 px-3 px-sm-0">
+                    <div class="d-grid gap-3">
+                        <button id="btn-toggle" onclick="toggleCamera()"
+                            class="btn btn-custom btn-scan-start py-3 shadow-sm fs-6">
+                            <i class="bi bi-camera-video-fill me-2"></i> <span id="btn-text">เปิดสแกน QR</span>
+                        </button>
+
+                        <button onclick="document.getElementById('file-input').click()"
+                            class="btn btn-custom btn-light border-secondary py-3 shadow-sm fs-6 text-dark">
+                            <i class="bi bi-image me-2"></i> อัปโหลดรูปภาพ
+                        </button>
+                        <input type="file" id="file-input" accept="image/*" class="d-none">
+                    </div>
+
+                    <div id="info" class="text-center mt-4 text-secondary small">
+                        <p class="mb-0 opacity-75"><i class="bi bi-info-circle me-1"></i> วาง QR Code ให้อยู่ในกรอบสแกน
+                        </p>
+                    </div>
+                </div>
+
             </div>
         </div>
 
     </main>
 
-    <footer class="log-panel">
-        <div class="container d-flex align-items-center justify-content-center"
-            style="color: #fff; font-size: 0.85rem;">
-            <span id="status-dot" class="status-dot-active me-1 mt-0"></span>
-            <span class="opacity-75">สถานะ:</span>
-            <span id="status-log" class="ms-1 fw-bold">พร้อมใช้งาน</span>
+    <footer class="log-panel py-3 mt-auto bg-dark border-top border-secondary">
+        <div class="container d-flex align-items-center justify-content-center text-white" style="font-size: 0.85rem;">
+            <div
+                class="bg-black bg-opacity-25 px-4 py-2 rounded-pill d-flex align-items-center border border-secondary border-opacity-25">
+                <span id="status-dot" class="status-dot-ready me-2 mt-0"></span>
+                <span class="opacity-75">สถานะ:</span>
+                <span id="status-log" class="ms-2 fw-bold text-success text-uppercase"
+                    style="letter-spacing: 0.5px;">พร้อมใช้งาน</span>
+            </div>
         </div>
     </footer>
 
