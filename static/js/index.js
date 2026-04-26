@@ -2,7 +2,6 @@ const html5QrCode = new Html5Qrcode("reader");
 let isRunning = false;
 let isTransitioning = false;
 
-
 const btnToggle = document.getElementById('btn-toggle');
 const btnText = document.getElementById('btn-text');
 const laser = document.getElementById('laser');
@@ -84,22 +83,20 @@ async function toggleCamera() {
             isRunning = false;
             resetUIState();
         } else {
-            // 🔥 [จุดที่แก้] พารามิเตอร์ตัวแรก ให้มีแค่ Key เดียวตามที่มันต้องการ
-            const cameraConfig = { facingMode: "environment" };
+            const cameraConfig = { facingMode: { exact: "environment" } };
 
-            // 🔥 [จุดที่แก้] ย้ายค่าความละเอียดมาไว้ในพารามิเตอร์ตัวที่ 2 (Scan Config)
             const scanConfig = {
                 fps: 10,
                 qrbox: (viewfinderWidth, viewfinderHeight) => {
-                    const minEdgePercentage = 0.65;
+                    const minEdgePercentage = 0.70;
                     const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
                     const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
                     return { width: qrboxSize, height: qrboxSize };
                 },
-                // ย้ายมาไว้ตรงนี้ครับ
                 videoConstraints: {
                     width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    height: { ideal: 720 },
+                    advanced: [{ focusMode: "continuous" }]
                 }
             };
 
@@ -116,16 +113,21 @@ async function toggleCamera() {
     } catch (err) {
         console.error("Camera error:", err);
         if (!isRunning) {
-            statusLog.innerText = "ไม่สามารถเปิดกล้องได้";
-            statusDot.className = 'status-dot-standby me-1';
-            Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: 'กรุณาอนุญาตให้แอปเข้าถึงกล้องของคุณ',
-                icon: 'error',
-                confirmButtonColor: '#ef4444',
-                background: '#111827',
-                color: '#fff'
-            });
+            try {
+                await html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, onScanSuccess);
+                isRunning = true;
+            } catch (e) {
+                statusLog.innerText = "ไม่สามารถเปิดกล้องหลังได้";
+                statusDot.className = 'status-dot-standby me-1';
+                Swal.fire({
+                    title: 'เปิดกล้องไม่สำเร็จ',
+                    text: 'กรุณาตรวจสอบการอนุญาตเข้าถึงกล้องหลัง',
+                    icon: 'error',
+                    confirmButtonColor: '#ef4444',
+                    background: '#111827',
+                    color: '#fff'
+                });
+            }
         }
     } finally {
         isTransitioning = false;
@@ -143,7 +145,6 @@ fileInput.addEventListener('change', async e => {
     };
     reader.readAsDataURL(file);
 
-    // หยุดกล้องก่อนถ้ามันเปิดอยู่
     if (isRunning) {
         try {
             await html5QrCode.stop();
@@ -159,17 +160,14 @@ fileInput.addEventListener('change', async e => {
 
     Swal.fire({
         title: 'กำลังอ่านไฟล์...',
-        text: 'กรุณารอสักครู่ ระบบกำลังประมวลผลภาพความละเอียดสูง',
+        text: 'กรุณารอสักครู่ ระบบกำลังประมวลผล...',
         allowOutsideClick: false,
         background: '#111827',
         color: '#fff',
         didOpen: () => { Swal.showLoading(); }
     });
 
-    // 🔥 [ไม้ตายแก้หน้าแตก]: หน่วงเวลานิดนึงเพื่อให้ Browser พร้อมประมวลผลรูปใหญ่
     setTimeout(() => {
-        // ใช้ scanFile แบบปิด qrbox (ส่งค่าพารามิเตอร์ตัวที่สองเป็น false หรือไม่ต้องส่ง)
-        // เพื่อให้มันใช้ Engine สแกนทั้งแผ่นภาพ ไม่ใช่แค่ตรงกลาง
         html5QrCode.scanFile(file, false)
             .then(result => {
                 Swal.close();
@@ -177,13 +175,11 @@ fileInput.addEventListener('change', async e => {
             })
             .catch(err => {
                 Swal.close();
-                console.error(err);
-                statusLog.innerText = "ไม่พบ QR Code ในรูปนี้";
+                statusLog.innerText = "ไม่พบ QR Code";
                 statusDot.className = 'status-dot-standby me-1';
-
                 Swal.fire({
                     title: 'สแกนไม่สำเร็จ',
-                    html: `ไม่พบ QR Code ในรูปภาพของคุณ<br><br><b>คำแนะนำ:</b><br>1. พยายามให้ QR Code อยู่กลางภาพ<br>2. หากรูปใหญ่ไป ให้ลองแคปหน้าจอ (Screenshot) เฉพาะส่วน QR แล้วอัปโหลดใหม่`,
+                    html: `ไม่พบ QR Code ในรูปภาพ<br><br>แนะนำให้ <b>Screenshot</b> เฉพาะส่วน QR Code แล้วลองอัปโหลดใหม่อีกครั้งนะครับ`,
                     icon: 'warning',
                     confirmButtonColor: '#0ea5e9',
                     background: '#111827',
@@ -193,18 +189,15 @@ fileInput.addEventListener('change', async e => {
                     closePreview();
                 });
             });
-    }, 300);
+    }, 500);
 });
 
 btnClosePreview.addEventListener('click', () => {
     closePreview();
-
     try { html5QrCode.clear(); } catch (err) { }
-
     if (!isRunning) {
         const readerDiv = document.getElementById('reader');
         readerDiv.querySelectorAll('img, canvas').forEach(node => node.remove());
     }
-
     resetUIState();
 });
