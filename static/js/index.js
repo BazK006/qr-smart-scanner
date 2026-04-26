@@ -7,12 +7,15 @@ const btnText = document.getElementById('btn-text');
 const laser = document.getElementById('laser');
 const info = document.getElementById('info');
 const statusLog = document.getElementById('status-log');
+const statusDot = document.getElementById('status-dot');
 const fileInput = document.getElementById('file-input');
 const previewContainer = document.getElementById('preview-container');
 const previewImage = document.getElementById('preview-image');
 const btnClosePreview = document.getElementById('btn-close-preview');
-const statusDot = document.getElementById('status-dot');
 
+// ===============================================================
+// UI Helpers
+// ===============================================================
 function resetUIState() {
     info.innerHTML = `<span class="text-secondary opacity-75">วาง QR Code ในหน้าจอเพื่อเริ่มสแกน</span>`;
     statusLog.innerText = isRunning ? "กำลังสแกน..." : "พร้อมใช้งาน";
@@ -25,14 +28,28 @@ function closePreview() {
     fileInput.value = "";
 }
 
+function showAiOverlay(show) {
+    const overlay = document.getElementById('ai-overlay');
+    if (!overlay) return;
+    if (show) {
+        overlay.classList.remove('d-none');
+        overlay.classList.add('d-flex');
+    } else {
+        overlay.classList.add('d-none');
+        overlay.classList.remove('d-flex');
+    }
+}
+
+// ===============================================================
+// Scan Success / Error
+// ===============================================================
 function onScanSuccess(decodedText) {
     if (navigator.vibrate) navigator.vibrate(150);
     statusLog.innerText = "พบข้อมูล";
     laser.style.display = 'none';
 
     if (decodedText.startsWith('http')) {
-        info.innerHTML = `<span class="text-success fw-bold" style="animation: pulse 1s infinite;">✅ สแกนสำเร็จ!</span>`;
-
+        info.innerHTML = `<span class="text-success fw-bold">✅ สแกนสำเร็จ!</span>`;
         Swal.fire({
             title: 'พบลิงก์เว็บไซต์',
             text: decodedText,
@@ -69,22 +86,176 @@ function onScanSuccess(decodedText) {
     }
 }
 
+function handleSuccess(result) {
+    Swal.close();
+    onScanSuccess(result);
+}
+
+function showError() {
+    Swal.close();
+    statusLog.innerText = "ไม่พบข้อมูล";
+    Swal.fire({
+        title: 'ไม่สามารถสแกนได้',
+        html: `รูปนี้สแกนยากมาก! แนะนำให้:<br>1. <b>เพิ่มแสง</b> หรือถ่ายในที่สว่าง<br>2. <b>Screenshot</b> เฉพาะตัว QR ให้ชัดที่สุด`,
+        icon: 'error',
+        background: '#111827',
+        color: '#fff'
+    });
+    resetUIState();
+}
+
+// ===============================================================
+// Claude Vision AI — รองรับทั้ง File และ Blob
+// ===============================================================
+async function scanWithClaudeVision(fileOrBlob) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const base64Data = e.target.result.split(',')[1];
+                const mediaType = fileOrBlob.type || 'image/jpeg';
+
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 1000,
+                        messages: [{
+                            role: "user",
+                            content: [
+                                {
+                                    type: "image",
+                                    source: { type: "base64", media_type: mediaType, data: base64Data }
+                                },
+                                {
+                                    type: "text",
+                                    text: `This image contains a QR code. Please decode the QR code and return ONLY the exact text/URL/data encoded in it. No explanation, no prefix — just the raw content. If unreadable, reply exactly: CANNOT_DECODE`
+                                }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                const text = data?.content?.[0]?.text?.trim();
+                resolve((text && text !== 'CANNOT_DECODE') ? text : null);
+            } catch (err) {
+                resolve(null);
+            }
+        };
+        reader.readAsDataURL(fileOrBlob);
+    });
+}
+
+// ===============================================================
+// Real-time Frame Processor — AI Fallback สำหรับกล้อง
+// ===============================================================
+let frameProcessorInterval = null;
+let lastAiAttempt = 0;
+const AI_COOLDOWN = 5000;  // ห่างกัน 5 วิต่อครั้ง
+const AI_TRIGGER_MS = 8000;  // รอ 8 วิก่อนเริ่ม AI
+
+function startFrameProcessor() {
+    stopFrameProcessor();
+    const startTime = Date.now();
+
+    frameProcessorInterval = setInterval(async () => {
+        if (!isRunning) return;
+
+        const now = Date.now();
+        if (now - startTime < AI_TRIGGER_MS) return;
+        if (now - lastAiAttempt < AI_COOLDOWN) return;
+
+        const video = document.querySelector('#reader video');
+        if (!video || video.readyState < 2) return;
+
+        lastAiAttempt = now;
+        console.log("AI Vision fallback: capturing frame...");
+        showAiOverlay(true);
+
+        try {
+            const blob = await captureFrameAsBlob(video);
+            const result = await scanWithClaudeVision(blob);
+            if (result && isRunning) {
+                stopFrameProcessor();
+                showAiOverlay(false);
+                await html5QrCode.stop();
+                isRunning = false;
+                btnText.innerText = "เปิดสแกน QR";
+                btnToggle.classList.replace('btn-scan-stop', 'btn-scan-start');
+                laser.style.display = 'none';
+                handleSuccess(result);
+            } else {
+                showAiOverlay(false);
+            }
+        } catch (err) {
+            console.warn("AI frame scan error:", err);
+            showAiOverlay(false);
+        }
+    }, 500);
+}
+
+function stopFrameProcessor() {
+    if (frameProcessorInterval) {
+        clearInterval(frameProcessorInterval);
+        frameProcessorInterval = null;
+    }
+    showAiOverlay(false);
+}
+
+function captureFrameAsBlob(video) {
+    return new Promise((resolve, reject) => {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(
+                blob => blob ? resolve(blob) : reject(new Error("Blob failed")),
+                'image/jpeg', 0.95
+            );
+        } catch (e) { reject(e); }
+    });
+}
+
+// ===============================================================
+// toggleCamera
+// ===============================================================
 async function toggleCamera() {
     if (isTransitioning) return;
     isTransitioning = true;
 
     try {
         if (isRunning) {
+            stopFrameProcessor();
             await html5QrCode.stop();
             btnText.innerText = "เปิดสแกน QR";
             btnToggle.classList.replace('btn-scan-stop', 'btn-scan-start');
             laser.style.display = 'none';
             isRunning = false;
             resetUIState();
+
         } else {
+            const screenMin = Math.min(window.innerWidth, window.innerHeight);
+            const boxSize = Math.floor(screenMin * 0.72);
+
             const config = {
-                fps: 20,
-                aspectRatio: 1.0
+                fps: 30,
+                aspectRatio: 1.0,
+                qrbox: { width: boxSize, height: boxSize },
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.QR_CODE,
+                    Html5QrcodeSupportedFormats.DATA_MATRIX,
+                    Html5QrcodeSupportedFormats.AZTEC,
+                    Html5QrcodeSupportedFormats.PDF_417,
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.CODE_39,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                ],
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                showTorchButtonIfSupported: false,
             };
 
             await html5QrCode.start(
@@ -100,39 +271,96 @@ async function toggleCamera() {
             statusLog.innerText = "กำลังสแกน...";
             statusDot.className = 'status-dot-active me-1';
             closePreview();
+            startFrameProcessor();
         }
+
     } catch (err) {
-        console.error(err);
-        statusLog.innerText = "กล้องมีปัญหา";
-        isTransitioning = false;
+        console.error("toggleCamera error:", err);
+
+        // Fallback: เลือกกล้องหลังจาก device list
+        if (!isRunning) {
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                const backCamera = devices.find(d => /back|rear|environment/i.test(d.label))
+                    || devices[devices.length - 1];
+
+                if (!backCamera) throw new Error("No camera found");
+
+                const screenMin = Math.min(window.innerWidth, window.innerHeight);
+                const boxSize = Math.floor(screenMin * 0.72);
+
+                await html5QrCode.start(
+                    backCamera.id,
+                    {
+                        fps: 25,
+                        aspectRatio: 1.0,
+                        qrbox: { width: boxSize, height: boxSize },
+                        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                        showTorchButtonIfSupported: false,
+                    },
+                    onScanSuccess
+                );
+
+                btnText.innerText = "ปิดสแกน QR";
+                btnToggle.classList.replace('btn-scan-start', 'btn-scan-stop');
+                laser.style.display = 'block';
+                isRunning = true;
+                statusLog.innerText = "กำลังสแกน...";
+                statusDot.className = 'status-dot-active me-1';
+                closePreview();
+                startFrameProcessor();
+
+            } catch (fallbackErr) {
+                console.error("Camera fallback failed:", fallbackErr);
+                statusLog.innerText = "ไม่สามารถเปิดกล้องได้";
+                Swal.fire({
+                    title: 'เปิดกล้องไม่ได้',
+                    text: 'กรุณาอนุญาตการเข้าถึงกล้องในการตั้งค่าเบราว์เซอร์',
+                    icon: 'error',
+                    background: '#111827',
+                    color: '#fff'
+                });
+            }
+        }
+
     } finally {
         isTransitioning = false;
     }
 }
 
+// ===============================================================
+// อัปโหลดรูปภาพ — 10-Stage Processing + Claude Vision AI
+// ===============================================================
 fileInput.addEventListener('change', async e => {
     if (e.target.files.length === 0) return;
 
     const file = e.target.files[0];
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-        previewImage.src = event.target.result;
+    reader.onload = ev => {
+        previewImage.src = ev.target.result;
         previewContainer.classList.remove('d-none');
     };
     reader.readAsDataURL(file);
 
     if (isRunning) {
-        try { await html5QrCode.stop(); isRunning = false; } catch (e) { }
+        try {
+            stopFrameProcessor();
+            await html5QrCode.stop();
+            isRunning = false;
+            btnText.innerText = "เปิดสแกน QR";
+            btnToggle.classList.replace('btn-scan-stop', 'btn-scan-start');
+            laser.style.display = 'none';
+        } catch (_) { }
     }
 
     Swal.fire({
-        title: 'กำลังใช้ AI วิเคราะห์ภาพ',
-        text: 'ระบบกำลังพยายามกู้คืนรายละเอียดภาพที่เบลอ...',
+        title: 'กำลังวิเคราะห์ภาพ',
+        text: 'ระบบกำลังพยายามอ่าน QR Code...',
         allowOutsideClick: false,
         background: '#111827',
         color: '#fff',
-        didOpen: () => { Swal.showLoading(); }
+        didOpen: () => Swal.showLoading()
     });
 
     const strategies = [
@@ -150,7 +378,7 @@ fileInput.addEventListener('change', async e => {
 
     for (let i = 0; i < strategies.length; i++) {
         const { label, options, scale } = strategies[i];
-        console.log(`Trying Stage ${i + 1}: ${label}`);
+        console.log(`Stage ${i + 1}: ${label}`);
         try {
             let fileToScan = file;
             if (options !== null || scale !== 1) {
@@ -160,73 +388,58 @@ fileInput.addEventListener('change', async e => {
             const result = await html5QrCode.scanFile(fileToScan, false);
             handleSuccess(result);
             return;
-        } catch (err) {
-            console.log(`Stage ${i + 1} (${label}) failed`);
+        } catch (_) {
+            console.log(`Stage ${i + 1} failed`);
         }
     }
 
-    console.log("All stages failed, trying Claude Vision AI...");
+    console.log("All stages failed → Claude Vision AI");
     try {
         const result = await scanWithClaudeVision(file);
-        if (result) {
-            handleSuccess(result);
-            return;
-        }
-    } catch (aiErr) {
-        console.log("Claude Vision also failed:", aiErr);
-    }
+        if (result) { handleSuccess(result); return; }
+    } catch (_) { }
 
     showError();
 });
 
+// ===============================================================
+// Image Processing Helpers
+// ===============================================================
 function processImage(file, options = {}, scale = 1) {
     return new Promise((resolve) => {
         const img = new Image();
         img.src = URL.createObjectURL(file);
         img.onload = () => {
             const MAX_SIZE = 1200;
-            let width = img.width * scale;
-            let height = img.height * scale;
-
-            if (width > height) {
-                if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-            } else {
-                if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-            }
-
-            width = Math.round(width);
-            height = Math.round(height);
+            let w = img.width * scale;
+            let h = img.height * scale;
+            if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } }
+            else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
+            w = Math.round(w); h = Math.round(h);
 
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = w; canvas.height = h;
 
-            let filters = [];
+            const filters = [];
             if (options.contrast) filters.push(`contrast(${options.contrast})`);
             if (options.grayscale) filters.push(`grayscale(100%)`);
             if (options.invert) filters.push(`invert(100%)`);
-            if (!options.adaptiveThreshold && !options.sharpen && !options.sharpenStrong && filters.length === 0) {
-                filters.push('none');
-            }
-
-            ctx.filter = filters.length > 0 ? filters.join(' ') : 'none';
-            ctx.drawImage(img, 0, 0, width, height);
+            ctx.filter = filters.length ? filters.join(' ') : 'none';
+            ctx.drawImage(img, 0, 0, w, h);
             ctx.filter = 'none';
 
             if (options.sharpen || options.sharpenStrong) {
-                const imageData = ctx.getImageData(0, 0, width, height);
-                const sharpened = applySharpen(imageData, options.sharpenStrong ? 'strong' : 'normal');
-                ctx.putImageData(sharpened, 0, 0);
+                ctx.putImageData(
+                    applySharpen(ctx.getImageData(0, 0, w, h), options.sharpenStrong ? 'strong' : 'normal'),
+                    0, 0
+                );
             }
 
             if (options.adaptiveThreshold) {
-                const imageData = ctx.getImageData(0, 0, width, height);
-                const thresholded = applyAdaptiveThreshold(imageData, 15, 10);
-                ctx.putImageData(thresholded, 0, 0);
-
+                ctx.putImageData(applyAdaptiveThreshold(ctx.getImageData(0, 0, w, h), 15, 10), 0, 0);
                 if (options.invert) {
-                    const inv = ctx.getImageData(0, 0, width, height);
+                    const inv = ctx.getImageData(0, 0, w, h);
                     for (let i = 0; i < inv.data.length; i += 4) {
                         inv.data[i] = 255 - inv.data[i];
                         inv.data[i + 1] = 255 - inv.data[i + 1];
@@ -244,7 +457,6 @@ function processImage(file, options = {}, scale = 1) {
 function applySharpen(imageData, mode = 'normal') {
     const { data, width, height } = imageData;
     const output = new Uint8ClampedArray(data);
-
     const kernel = mode === 'strong'
         ? [0, -1, 0, -1, 5, -1, 0, -1, 0]
         : [0, -0.5, 0, -0.5, 3, -0.5, 0, -0.5, 0];
@@ -252,126 +464,49 @@ function applySharpen(imageData, mode = 'normal') {
     for (let y = 1; y < height - 1; y++) {
         for (let x = 1; x < width - 1; x++) {
             const idx = (y * width + x) * 4;
-
             for (let c = 0; c < 3; c++) {
                 let val = 0;
-                for (let ky = -1; ky <= 1; ky++) {
-                    for (let kx = -1; kx <= 1; kx++) {
-                        const ki = (ky + 1) * 3 + (kx + 1);
-                        const pi = ((y + ky) * width + (x + kx)) * 4;
-                        val += data[pi + c] * kernel[ki];
-                    }
-                }
+                for (let ky = -1; ky <= 1; ky++)
+                    for (let kx = -1; kx <= 1; kx++)
+                        val += data[((y + ky) * width + (x + kx)) * 4 + c] * kernel[(ky + 1) * 3 + (kx + 1)];
                 output[idx + c] = Math.min(255, Math.max(0, val));
             }
             output[idx + 3] = data[idx + 3];
         }
     }
-
     return new ImageData(output, width, height);
 }
 
 function applyAdaptiveThreshold(imageData, blockSize = 15, C = 10) {
     const { data, width, height } = imageData;
     const output = new Uint8ClampedArray(data.length);
-
     const gray = new Uint8Array(width * height);
-    for (let i = 0; i < width * height; i++) {
-        const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-        gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-    }
+    for (let i = 0; i < gray.length; i++)
+        gray[i] = Math.round(0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]);
 
     const half = Math.floor(blockSize / 2);
-
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             let sum = 0, count = 0;
-            for (let ky = -half; ky <= half; ky++) {
+            for (let ky = -half; ky <= half; ky++)
                 for (let kx = -half; kx <= half; kx++) {
                     const ny = y + ky, nx = x + kx;
-                    if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
-                        sum += gray[ny * width + nx];
-                        count++;
-                    }
+                    if (ny >= 0 && ny < height && nx >= 0 && nx < width) { sum += gray[ny * width + nx]; count++; }
                 }
-            }
-            const mean = sum / count;
-            const pixel = gray[y * width + x] < mean - C ? 0 : 255;
+            const pixel = gray[y * width + x] < (sum / count) - C ? 0 : 255;
             const idx = (y * width + x) * 4;
             output[idx] = output[idx + 1] = output[idx + 2] = pixel;
             output[idx + 3] = 255;
         }
     }
-
     return new ImageData(output, width, height);
 }
 
-async function scanWithClaudeVision(file) {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const base64Data = e.target.result.split(',')[1];
-                const mediaType = file.type || 'image/jpeg';
-
-                const response = await fetch("https://api.anthropic.com/v1/messages", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "claude-sonnet-4-20250514",
-                        max_tokens: 1000,
-                        messages: [{
-                            role: "user",
-                            content: [
-                                {
-                                    type: "image",
-                                    source: { type: "base64", media_type: mediaType, data: base64Data }
-                                },
-                                {
-                                    type: "text",
-                                    text: `This image contains a QR code. Please decode the QR code and return ONLY the exact text/URL/data encoded in the QR code. Do not add any explanation, prefix, or extra text — just the raw decoded content. If you cannot read the QR code, reply with exactly: CANNOT_DECODE`
-                                }
-                            ]
-                        }]
-                    })
-                });
-
-                const data = await response.json();
-                const text = data?.content?.[0]?.text?.trim();
-
-                if (text && text !== 'CANNOT_DECODE') {
-                    resolve(text);
-                } else {
-                    resolve(null);
-                }
-            } catch (err) {
-                resolve(null);
-            }
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-function handleSuccess(result) {
-    Swal.close();
-    onScanSuccess(result);
-}
-
-function showError() {
-    Swal.close();
-    statusLog.innerText = "ไม่พบข้อมูล";
-    Swal.fire({
-        title: 'ไม่สามารถสแกนได้',
-        html: `ไม่พบข้อมูลในรหัส QR ที่คุณสแกน! <br><br>แนะนำให้:<br>1. <b>เปิดไฟ</b> หรือเพิ่มแสงในรูป<br>2. <b>Screenshot</b> เฉพาะตัว QR ให้ชัดที่สุด`,
-        icon: 'error',
-        background: '#111827',
-        color: '#fff'
-    });
-    resetUIState();
-}
-
+// ===============================================================
+// Close Preview
+// ===============================================================
 btnClosePreview.addEventListener('click', () => {
     closePreview();
-    try { html5QrCode.clear(); } catch (err) { }
+    try { html5QrCode.clear(); } catch (_) { }
     resetUIState();
 });

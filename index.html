@@ -28,33 +28,37 @@
     </nav>
 
     <main class="container flex-grow-1 d-flex flex-column align-items-center justify-content-center py-4 py-md-5">
-
         <div class="row w-100 justify-content-center">
-
             <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4 d-flex flex-column align-items-center">
 
-                <div class="scanner-wrapper w-100 mb-4 shadow-lg">
+                <!-- Scanner Wrapper -->
+                <div class="scanner-wrapper w-100 mb-4 shadow-lg position-relative">
                     <div id="laser" class="laser-line"></div>
                     <div id="reader"></div>
 
-                    <!-- <div class="scan-frame">
-                        <div class="corner top-left"></div>
-                        <div class="corner top-right"></div>
-                        <div class="corner bottom-left"></div>
-                        <div class="corner bottom-right"></div>
-                    </div> -->
+                    <!-- AI Overlay — แสดงเมื่อ AI กำลังวิเคราะห์ frame จากกล้อง -->
+                    <div id="ai-overlay"
+                        class="d-none position-absolute top-0 start-0 w-100 h-100 flex-column align-items-center justify-content-center"
+                        style="background: rgba(0,0,0,0.65); z-index: 20; border-radius: inherit;">
+                        <div class="spinner-border text-success mb-2" role="status" style="width:2rem;height:2rem;">
+                        </div>
+                        <span class="text-white small fw-bold">AI กำลังวิเคราะห์...</span>
+                    </div>
 
+                    <!-- Preview รูปที่อัปโหลด -->
                     <div id="preview-container" class="preview-container d-none">
                         <img id="preview-image" src="" alt="Uploaded QR">
                         <button id="btn-close-preview" class="btn-close-preview" aria-label="Close Preview">✖</button>
                     </div>
                 </div>
 
+                <!-- Buttons -->
                 <div class="w-100 px-3 px-sm-0">
                     <div class="d-grid gap-3">
                         <button id="btn-toggle" onclick="toggleCamera()"
                             class="btn btn-custom btn-scan-start py-3 shadow-sm fs-6">
-                            <i class="bi bi-camera-video-fill me-2"></i> <span id="btn-text">เปิดสแกน QR</span>
+                            <i class="bi bi-camera-video-fill me-2"></i>
+                            <span id="btn-text">เปิดสแกน QR</span>
                         </button>
 
                         <button onclick="document.getElementById('file-input').click()"
@@ -65,14 +69,15 @@
                     </div>
 
                     <div id="info" class="text-center mt-4 text-secondary small">
-                        <p class="mb-0 opacity-75"><i class="bi bi-info-circle me-1"></i> วาง QR Code ให้อยู่ในกรอบสแกน
+                        <p class="mb-0 opacity-75">
+                            <i class="bi bi-info-circle me-1"></i>
+                            วาง QR Code ให้อยู่ในกรอบสแกน
                         </p>
                     </div>
                 </div>
 
             </div>
         </div>
-
     </main>
 
     <footer class="log-panel py-3 mt-auto bg-dark border-top border-secondary">
