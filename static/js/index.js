@@ -40,7 +40,7 @@ function onScanSuccess(decodedText) {
             color: '#fff',
             backdrop: `rgba(14, 165, 233, 0.2)`
         }).then((result) => {
-            laser.style.display = isRunning ? 'block' : 'none'; // เปิดเลเซอร์คืนถ้ายังรันกล้องอยู่
+            laser.style.display = isRunning ? 'block' : 'none';
             if (result.isConfirmed) {
                 window.location.href = decodedText;
             } else {
@@ -85,7 +85,7 @@ async function toggleCamera() {
             previewContainer.classList.add('d-none');
         }).catch(err => {
             statusLog.innerText = "ไม่สามารถเปิดกล้องได้";
-            statusDot.className = 'status-dot-standby me-1'; // เปลี่ยนเป็นสีส้ม/เหลืองแจ้งเตือน
+            statusDot.className = 'status-dot-standby me-1';
             Swal.fire({
                 title: 'เกิดข้อผิดพลาด',
                 text: 'กรุณาอนุญาตให้แอปเข้าถึงกล้องของคุณ',
