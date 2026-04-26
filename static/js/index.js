@@ -83,52 +83,62 @@ async function toggleCamera() {
             isRunning = false;
             resetUIState();
         } else {
-            const cameraConfig = { facingMode: { exact: "environment" } };
+            // 🔥 [ท่าไม้ตาย] ลิสต์กล้องทั้งหมดออกมาดูเลย
+            const cameras = await Html5Qrcode.getCameras();
 
-            const scanConfig = {
-                fps: 10,
-                qrbox: (viewfinderWidth, viewfinderHeight) => {
-                    const minEdgePercentage = 0.70;
-                    const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-                    const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
-                    return { width: qrboxSize, height: qrboxSize };
-                },
-                videoConstraints: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    advanced: [{ focusMode: "continuous" }]
-                }
-            };
+            if (cameras && cameras.length > 0) {
+                // พยายามหากล้องที่มีคำว่า back, rear หรือเลือกตัวสุดท้ายของลิสต์ (ส่วนใหญ่คือกล้องหลัง)
+                let backCamera = cameras.find(cam =>
+                    cam.label.toLowerCase().includes('back') ||
+                    cam.label.toLowerCase().includes('rear') ||
+                    cam.label.toLowerCase().includes('หลัง')
+                );
 
-            await html5QrCode.start(cameraConfig, scanConfig, onScanSuccess);
+                // ถ้าหาชื่อไม่เจอ ให้เอาตัวสุดท้ายในรายการ (กล้องหลังมักอยู่ตัวสุดท้าย)
+                const cameraId = backCamera ? backCamera.id : cameras[cameras.length - 1].id;
 
-            btnText.innerText = "ปิดสแกน QR";
-            btnToggle.classList.replace('btn-scan-start', 'btn-scan-stop');
-            laser.style.display = 'block';
-            isRunning = true;
-            statusLog.innerText = "กำลังสแกน...";
-            statusDot.className = 'status-dot-active me-1';
-            closePreview();
+                const scanConfig = {
+                    fps: 10,
+                    qrbox: (viewfinderWidth, viewfinderHeight) => {
+                        const minEdgePercentage = 0.70;
+                        const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                        const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+                        return { width: qrboxSize, height: qrboxSize };
+                    },
+                    // ย้ายการตั้งค่าความละเอียดมาไว้ตรงนี้
+                    videoConstraints: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "environment" // ใส่กันเหนียวไว้อีกชั้น
+                    }
+                };
+
+                // เริ่มรันด้วย ID กล้องที่เราเจาะจง
+                await html5QrCode.start(cameraId, scanConfig, onScanSuccess);
+
+                btnText.innerText = "ปิดสแกน QR";
+                btnToggle.classList.replace('btn-scan-start', 'btn-scan-stop');
+                laser.style.display = 'block';
+                isRunning = true;
+                statusLog.innerText = "กำลังสแกน...";
+                statusDot.className = 'status-dot-active me-1';
+                closePreview();
+            } else {
+                throw new Error("ไม่พบกล้องในอุปกรณ์นี้");
+            }
         }
     } catch (err) {
         console.error("Camera error:", err);
-        if (!isRunning) {
-            try {
-                await html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, onScanSuccess);
-                isRunning = true;
-            } catch (e) {
-                statusLog.innerText = "ไม่สามารถเปิดกล้องหลังได้";
-                statusDot.className = 'status-dot-standby me-1';
-                Swal.fire({
-                    title: 'เปิดกล้องไม่สำเร็จ',
-                    text: 'กรุณาตรวจสอบการอนุญาตเข้าถึงกล้องหลัง',
-                    icon: 'error',
-                    confirmButtonColor: '#ef4444',
-                    background: '#111827',
-                    color: '#fff'
-                });
-            }
-        }
+        statusLog.innerText = "ไม่สามารถเปิดกล้องหลังได้";
+        statusDot.className = 'status-dot-standby me-1';
+        Swal.fire({
+            title: 'เกิดข้อผิดพลาด',
+            text: 'ไม่สามารถระบุกล้องหลังได้ หรือคุณยังไม่ได้อนุญาตให้เข้าถึงกล้อง',
+            icon: 'error',
+            confirmButtonColor: '#ef4444',
+            background: '#111827',
+            color: '#fff'
+        });
     } finally {
         isTransitioning = false;
     }
