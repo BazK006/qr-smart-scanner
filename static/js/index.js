@@ -13,9 +13,6 @@ const previewContainer = document.getElementById('preview-container');
 const previewImage = document.getElementById('preview-image');
 const btnClosePreview = document.getElementById('btn-close-preview');
 
-// ===============================================================
-// UI Helpers
-// ===============================================================
 function resetUIState() {
     info.innerHTML = `<span class="text-secondary opacity-75">วาง QR Code ในหน้าจอเพื่อเริ่มสแกน</span>`;
     statusLog.innerText = isRunning ? "กำลังสแกน..." : "พร้อมใช้งาน";
@@ -40,9 +37,6 @@ function showAiOverlay(show) {
     }
 }
 
-// ===============================================================
-// Scan Success / Error
-// ===============================================================
 function onScanSuccess(decodedText) {
     if (navigator.vibrate) navigator.vibrate(150);
     statusLog.innerText = "พบข้อมูล";
@@ -104,9 +98,6 @@ function showError() {
     resetUIState();
 }
 
-// ===============================================================
-// Claude Vision AI — รองรับทั้ง File และ Blob
-// ===============================================================
 async function scanWithClaudeVision(fileOrBlob) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -148,13 +139,10 @@ async function scanWithClaudeVision(fileOrBlob) {
     });
 }
 
-// ===============================================================
-// Real-time Frame Processor — AI Fallback สำหรับกล้อง
-// ===============================================================
 let frameProcessorInterval = null;
 let lastAiAttempt = 0;
-const AI_COOLDOWN = 5000;  // ห่างกัน 5 วิต่อครั้ง
-const AI_TRIGGER_MS = 8000;  // รอ 8 วิก่อนเริ่ม AI
+const AI_COOLDOWN = 5000;
+const AI_TRIGGER_MS = 8000;
 
 function startFrameProcessor() {
     stopFrameProcessor();
@@ -219,9 +207,6 @@ function captureFrameAsBlob(video) {
     });
 }
 
-// ===============================================================
-// toggleCamera
-// ===============================================================
 async function toggleCamera() {
     if (isTransitioning) return;
     isTransitioning = true;
@@ -277,7 +262,6 @@ async function toggleCamera() {
     } catch (err) {
         console.error("toggleCamera error:", err);
 
-        // Fallback: เลือกกล้องหลังจาก device list
         if (!isRunning) {
             try {
                 const devices = await Html5Qrcode.getCameras();
@@ -328,9 +312,6 @@ async function toggleCamera() {
     }
 }
 
-// ===============================================================
-// อัปโหลดรูปภาพ — 10-Stage Processing + Claude Vision AI
-// ===============================================================
 fileInput.addEventListener('change', async e => {
     if (e.target.files.length === 0) return;
 
@@ -402,9 +383,6 @@ fileInput.addEventListener('change', async e => {
     showError();
 });
 
-// ===============================================================
-// Image Processing Helpers
-// ===============================================================
 function processImage(file, options = {}, scale = 1) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -502,9 +480,6 @@ function applyAdaptiveThreshold(imageData, blockSize = 15, C = 10) {
     return new ImageData(output, width, height);
 }
 
-// ===============================================================
-// Close Preview
-// ===============================================================
 btnClosePreview.addEventListener('click', () => {
     closePreview();
     try { html5QrCode.clear(); } catch (_) { }
